@@ -1,5 +1,6 @@
 package com.leo.demos
 
+import com.alibaba.fastjson.JSON
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
 import io.netty.channel.group.ChannelGroup
@@ -15,7 +16,11 @@ class ImmediateMessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
         if (webSocketFrame instanceof WebSocketFrame) {
             def text = (webSocketFrame as TextWebSocketFrame).text()
             System.out.println("ImmediateMessageHandler receive message: " + text)
-            channelHandlerContext.channel().writeAndFlush(new TextWebSocketFrame("ImmediateMessageHandler response: " + text))
+            // 如果不是json格式的数据，反馈客户端数据格式错误
+            if (!JSON.isValid(text)) {
+                channelHandlerContext.channel().writeAndFlush(new TextWebSocketFrame(JSON.toJSONString(["code": 400, "message": "message format error"])))
+                return
+            }
             broadcast(channelHandlerContext, text)
         } else {
             throw new UnsupportedOperationException("unsupported message: " + webSocketFrame)
@@ -41,7 +46,7 @@ class ImmediateMessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
         channels.remove(ctx)
     }
 
-    private void broadcast(ChannelHandlerContext ctx, String message) {
+    private static void broadcast(ChannelHandlerContext ctx, String message) {
         channels.forEach { channel -> {
             if (channel != ctx.channel()) {
                 channel.writeAndFlush(new TextWebSocketFrame(message))
